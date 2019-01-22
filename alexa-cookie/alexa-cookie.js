@@ -34,109 +34,109 @@ let Cookie = '';
 
 
 function addCookies(Cookie, headers) {
-    if (!headers || !headers['set-cookie']) return Cookie;
-    const cookies = cookieTools.parse(Cookie);
-    for (let cookie of headers['set-cookie']) {
-        cookie = cookie.match(/^([^=]+)=([^;]+);.*/);
-        if (cookie && cookie.length === 3) {
-            if (cookie[1] === 'ap-fid' && cookie[2] === '""') continue;
-            if (cookies[cookie[1]] && cookies[cookie[1]] !== cookie[2]) {
-                _options.logger && _options.logger('Alexa-Cookie: Update Cookie ' + cookie[1] + ' = ' + cookie[2]);
-            } else if (!cookies[cookie[1]]) {
-                _options.logger && _options.logger('Alexa-Cookie: Add Cookie ' + cookie[1] + ' = ' + cookie[2]);
-            }
-            cookies[cookie[1]] = cookie[2];
-        }
+  if (!headers || !headers['set-cookie']) return Cookie;
+  const cookies = cookieTools.parse(Cookie);
+  for (let cookie of headers['set-cookie']) {
+    cookie = cookie.match(/^([^=]+)=([^;]+);.*/);
+    if (cookie && cookie.length === 3) {
+      if (cookie[1] === 'ap-fid' && cookie[2] === '""') continue;
+      if (cookies[cookie[1]] && cookies[cookie[1]] !== cookie[2]) {
+        _options.logger && _options.logger('Alexa-Cookie: Update Cookie ' + cookie[1] + ' = ' + cookie[2]);
+      } else if (!cookies[cookie[1]]) {
+        _options.logger && _options.logger('Alexa-Cookie: Add Cookie ' + cookie[1] + ' = ' + cookie[2]);
+      }
+      cookies[cookie[1]] = cookie[2];
     }
-    Cookie = '';
-    for (let name in cookies) {
-        if (!cookies.hasOwnProperty(name)) continue;
-        Cookie += name + '=' + cookies[name] + '; ';
-    }
-    Cookie = Cookie.replace(/[; ]*$/, '');
-    return Cookie;
+  }
+  Cookie = '';
+  for (let name in cookies) {
+    if (!cookies.hasOwnProperty(name)) continue;
+    Cookie += name + '=' + cookies[name] + '; ';
+  }
+  Cookie = Cookie.replace(/[; ]*$/, '');
+  return Cookie;
 }
 
 function request(options, info, callback) {
-    _options.debug && console.log('Alexa-Cookie: Sending Request with ' + JSON.stringify(options));
-    if (typeof info === 'function') {
-        callback = info;
-        info = {
-            requests: []
-        };
-    }
+  _options.debug && console.log('Alexa-Cookie: Sending Request with ' + JSON.stringify(options));
+  if (typeof info === 'function') {
+    callback = info;
+    info = {
+      requests: []
+    };
+  }
 
-    let removeContentLength;
-    if (options.headers && options.headers['Content-Length']) {
-        if (!options.body) delete options.headers['Content-Length'];
-    } else if (options.body) {
-        if (!options.headers) options.headers = {};
-        options.headers['Content-Length'] = options.body.length;
-        removeContentLength = true;
-    }
+  let removeContentLength;
+  if (options.headers && options.headers['Content-Length']) {
+    if (!options.body) delete options.headers['Content-Length'];
+  } else if (options.body) {
+    if (!options.headers) options.headers = {};
+    options.headers['Content-Length'] = options.body.length;
+    removeContentLength = true;
+  }
 
-    let req = https.request(options, function(res) {
-        let body = "";
-        info.requests.push({
-            options: options,
-            response: res
-        });
-
-        if (options.followRedirects !== false && res.statusCode >= 300 && res.statusCode < 400) {
-            _options.debug && console.log('Alexa-Cookie: Response (' + res.statusCode + ')' + (res.headers.location ? ' - Redirect to ' + res.headers.location : ''));
-            //options.url = res.headers.location;
-            let u = url.parse(res.headers.location);
-            if (u.host) options.host = u.host;
-            options.path = u.path;
-            options.method = 'GET';
-            options.body = '';
-            options.headers.Cookie = Cookie = addCookies(Cookie, res.headers);
-
-            res.connection.end();
-            return request(options, info, callback);
-        } else {
-            _options.debug && console.log('Alexa-Cookie: Response (' + res.statusCode + ')');
-            res.on('data', function(chunk) {
-                body += chunk;
-            });
-
-            res.on('end', function() {
-                if (removeContentLength) delete options.headers['Content-Length'];
-                res.connection.end();
-                callback && callback(0, res, body, info);
-            });
-        }
+  let req = https.request(options, function(res) {
+    let body = "";
+    info.requests.push({
+      options: options,
+      response: res
     });
 
-    req.on('error', function(e) {
-        if (typeof callback === 'function' && callback.length >= 2) {
-            return callback(e, null, null, info);
-        }
-    });
-    if (options && options.body) {
-        req.write(options.body);
+    if (options.followRedirects !== false && res.statusCode >= 300 && res.statusCode < 400) {
+      _options.debug && console.log('Alexa-Cookie: Response (' + res.statusCode + ')' + (res.headers.location ? ' - Redirect to ' + res.headers.location : ''));
+      //options.url = res.headers.location;
+      let u = url.parse(res.headers.location);
+      if (u.host) options.host = u.host;
+      options.path = u.path;
+      options.method = 'GET';
+      options.body = '';
+      options.headers.Cookie = Cookie = addCookies(Cookie, res.headers);
+
+      res.connection.end();
+      return request(options, info, callback);
+    } else {
+      _options.debug && console.log('Alexa-Cookie: Response (' + res.statusCode + ')');
+      res.on('data', function(chunk) {
+        body += chunk;
+      });
+
+      res.on('end', function() {
+        if (removeContentLength) delete options.headers['Content-Length'];
+        res.connection.end();
+        callback && callback(0, res, body, info);
+      });
     }
-    req.end();
+  });
+
+  req.on('error', function(e) {
+    if (typeof callback === 'function' && callback.length >= 2) {
+      return callback(e, null, null, info);
+    }
+  });
+  if (options && options.body) {
+    req.write(options.body);
+  }
+  req.end();
 }
 
 function getFields(body) {
-    body = body.replace(/[\n\r]/g, ' ');
-    let re = /^.*?("hidden"\s*name=".*$)/;
-    let ar = re.exec(body);
-    if (!ar || ar.length < 2) return {};
-    let h;
-    re = /.*?name="([^"]+)"[\s^\s]*value="([^"]+).*?"/g;
-    let data = {};
-    while ((h = re.exec(ar[1])) !== null) {
-        if (h[1] !== 'rememberMe') {
-            data[h[1]] = h[2];
-        }
+  body = body.replace(/[\n\r]/g, ' ');
+  let re = /^.*?("hidden"\s*name=".*$)/;
+  let ar = re.exec(body);
+  if (!ar || ar.length < 2) return {};
+  let h;
+  re = /.*?name="([^"]+)"[\s^\s]*value="([^"]+).*?"/g;
+  let data = {};
+  while ((h = re.exec(ar[1])) !== null) {
+    if (h[1] !== 'rememberMe') {
+      data[h[1]] = h[2];
     }
-    return data;
+  }
+  return data;
 }
 
 let getLocalHost = function(noPort = false) {
-    return (_options.proxyHost || _options.proxyOwnIp) + ((_options.useHeroku || noPort) ? '' : ':' + _options.serverPort);
+    return `${(_options.proxyHost || _options.proxyOwnIp)}${(noPort || _options.useHeroku) ? '' : `:${_options.proxyPort}`}`;
 };
 
 function initConfig() {
@@ -168,14 +168,14 @@ function initConfig() {
     }
     if (_options.setupProxy) {
         _options.setupProxy = true;
-        _options.proxyPort = _options.serverPort || 0;
+        _options.proxyPort = _options.proxyPort || 0;
         _options.proxyListenBind = _options.proxyListenBind || '0.0.0.0';
         _options.debug && console.log('Alexa-Cookie: Proxy-Mode enabled if needed: ' + getLocalHost() + ' to listen on ' + _options.proxyListenBind);
     } else {
         _options.setupProxy = false;
         _options.debug && console.log('Alexa-Cookie: Proxy mode disabled');
     }
-    _options.proxyRootPath = _options.proxyRootPath || '/';
+    _options.proxyRootPath = _options.proxyRootPath || '';
     _options.proxyLogLevel = _options.proxyLogLevel || 'warn';
     _options.amazonPageProxyLanguage = _options.amazonPageProxyLanguage || 'en_US';
 
@@ -322,14 +322,14 @@ function generateAlexaCookie(email, password, __options, webapp, callback) {
                         }
                         if (_options.setupProxy) {
                             if (proxyServer) {
-                                errMessage += ` You can try to get the cookie manually by opening https://${getLocalHost()}/ with your browser.`;
+                                errMessage += ` You can try to get the cookie manually by opening ${_options.protocolPrefix}://${getLocalHost()}/ with your browser.`;
                             } else {
                                 amazonProxy.initAmazonProxy(_options, webApp, prepareResult, (server) => {
                                     proxyServer = server;
                                     if (_options.proxyPort === 0) {
                                         _options.proxyPort = proxyServer.address().port;
                                     }
-                                    errMessage += ` You can try to get the cookie manually by opening https://${getLocalHost()}/ with your browser.`;
+                                    errMessage += ` You can try to get the cookie manually by opening ${_options.protocolPrefix}://${getLocalHost()}/ with your browser.`;
                                     callback && callback(new Error(errMessage), null);
                                 });
                                 return;
@@ -349,7 +349,7 @@ function generateAlexaCookie(email, password, __options, webapp, callback) {
             if (_options.proxyPort === 0) {
                 _options.proxyPort = proxyServer.address().port;
             }
-            const errMessage = `You can try to get the cookie manually by opening http://${getLocalHost()}/ with your browser.`;
+            const errMessage = `You can try to get the cookie manually by opening ${_options.protocolPrefix}://${getLocalHost()}/ with your browser.`;
             callback && callback(new Error(errMessage), null);
         });
     }
@@ -362,7 +362,6 @@ function generateAlexaCookie(email, password, __options, webapp, callback) {
         handleTokenRegistration(_options, data, callback);
     }
 }
-
 
 function handleTokenRegistration(_options, loginData, callback) {
     _options.logger && _options.logger('Handle token registration Start: ' + JSON.stringify(loginData));
