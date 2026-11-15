@@ -88,6 +88,14 @@ function req(port, method, p, headers = {}, body) {
     ok(seen[0].body === 'email=a%40b.c', `POST body forwarded intact (${seen[0].body})`);
     ok(seen[0].headers.referer === 'https://www.amazon.com/ap/signin', `Referer rewritten back to Amazon (${seen[0].headers.referer})`);
 
+    // 3b. First form post from the sign-in page served at /proxy (Referer has no trailing slash)
+    fakeHandler = (q, s) => { s.writeHead(200, { 'content-type': 'text/html' }); s.end('<html>signin</html>'); };
+    await req(PORT, 'GET', '/proxy'); // establishes the initial sign-in URL
+    seen.length = 0;
+    r = await req(PORT, 'POST', '/proxy/www.amazon.com/ax/claim?arb=2', { 'content-type': 'application/x-www-form-urlencoded', referer: `http://127.0.0.1:${PORT}/proxy` }, 'email=a%40b.c');
+    ok(seen[0] && /^https:\/\/www\.amazon\.com\/ap\/signin\?/.test(seen[0].headers.referer), `Referer ".../proxy" mapped to Amazon sign-in URL (${seen[0] && seen[0].headers.referer.slice(0, 45)}...)`);
+    ok(!seen.some(x => /192\.168|127\.0\.0\.1/.test(x.headers.referer || '')), 'no LAN address leaks to Amazon in Referer');
+
     // 4. CSP / HSTS stripped, body URLs rewritten, meta upgrade-insecure-requests removed
     fakeHandler = (q, s) => {
         s.writeHead(200, { 'content-type': 'text/html', 'content-security-policy': 'upgrade-insecure-requests', 'strict-transport-security': 'max-age=1' });

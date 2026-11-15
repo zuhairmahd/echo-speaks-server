@@ -349,6 +349,12 @@ function initAmazonProxy(_options, callbackCookie, callbackListening) {
             const hostRegex = new RegExp(`${escapeRegex(base)}${escapeRegex(host)}/`, 'g');
             data = data.replace(hostRegex, `https://${host}/`);
         }
+        // Echo Speaks: the sign-in page is served (without redirect) at <origin><rootPath>, so the
+        // browser's Referer for the first form post is e.g. "http://ip:8091/proxy" without a trailing
+        // slash. Map it to the Amazon sign-in URL like the bare proxy base.
+        if (rootPath && (data === base.slice(0, -1) || data.startsWith(`${base.slice(0, -1)}?`))) {
+            data = base;
+        }
         if (data === base) {
             data = returnedInitUrl;
         }
