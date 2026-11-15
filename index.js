@@ -210,6 +210,10 @@ function startWebConfig() {
                 alexaCookie.refreshAlexaCookie(
                     {
                         formerRegistrationData: runTimeData.savedConfig.cookieData,
+                        // Must match the app name the device was registered with (alexa-cookie 5.x defaults to another name).
+                        deviceAppName: "Echo Speaks",
+                        acceptLanguage: configData.settings.regionLocale,
+                        logger: configData.settings.serviceDebug === true ? console.log : undefined,
                     },
                     (err, result) => {
                         if (result && Object.keys(result).length >= 2) {
@@ -333,7 +337,8 @@ function startWebServer(checkForCookie = false) {
         proxyListenBind: "0.0.0.0",
         // proxyLogLevel: 'info', // optional: Loglevel of Proxy, default 'warn'
         protocolPrefix: getProtoPrefix(),
-        regDataAppName: "Echo Speaks",
+        deviceAppName: "Echo Speaks",
+        amazonPageProxyLanguage: String(configData.settings.regionLocale || "en-US").replace("-", "_"),
         useHeroku: isHeroku,
         proxyHost: configData.settings.hostUrl,
         proxyPort: configData.settings.serverPort,

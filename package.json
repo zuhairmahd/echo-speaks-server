@@ -9,19 +9,19 @@
         }
     ],
     "engines": {
-        "node": ">=12.9.1"
+        "node": ">=16"
     },
     "dependencies": {
         "@types/underscore": "^1.11.4",
         "body-parser": "^1.20.1",
         "dateformat": "^4.6.3",
         "edit-json-file": "^1.7.0",
-        "express": "^4.18.2",
+        "express": "^4.22.2",
         "express-remove-route": "1.0.0",
-        "cookie": "^0.4.2",
+        "cookie": "^0.6.0",
         "find-free-port": "^2.0.0",
         "getos": "^3.2.1",
-        "http-proxy-middleware": "^2.0.6",
+        "http-proxy-middleware": "^2.0.10",
         "http-proxy-response-rewrite": "^0.0.1",
         "https": "^1.0.0",
         "moment": "^2.29.4",
@@ -52,7 +52,8 @@
         "url": "https://github.com/tonesto7/echo-speaks-server/issues"
     },
     "scripts": {
-        "start": "node index.js"
+        "start": "node index.js",
+        "test": "node test/proxy-embedded.test.js && node test/register-refresh.test.js"
     },
     "main": "./index.js",
     "readmeFilename": "readme.md",
