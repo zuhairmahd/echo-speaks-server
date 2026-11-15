@@ -531,7 +531,7 @@ initConfig()
                                 logger.info("-- Echo Speaks Web Service Starting Up! Takes about 10 seconds before it's available... --");
                                 startWebServer(configData.settings.useHeroku === true && configData.settings.appCallbackUrl !== undefined);
                             } else {
-                                logger.info(`** Echo Speaks Web Service is Waiting for Amazon Login to Start... loginComplete: ${configData.state.loginComplete || undefined} | hostUrl: ${configData.settings.hostUrl || undefined} | appCallbackUrl: ${configData.settings.appCallbackUrl} **`);
+                                logger.info(`** Echo Speaks Web Service is Waiting for Amazon Login to Start... loginComplete: ${configData.state.loginComplete || undefined} | hostUrl: ${configData.settings.hostUrl || undefined} | appCallbackUrl: ${redactUrl(configData.settings.appCallbackUrl)} **`);
                             }
                         } else {
                             logger.error("Config Check Did Not Pass");
