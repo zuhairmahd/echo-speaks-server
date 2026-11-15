@@ -1,0 +1,45 @@
+diff --git a/libs/alexa-cookie/lib/proxy.js b/libs/alexa-cookie/lib/proxy.js
+index abd2544..37bbb27 100644
+--- a/libs/alexa-cookie/lib/proxy.js
++++ b/libs/alexa-cookie/lib/proxy.js
+@@ -287,6 +287,16 @@ function initAmazonProxy(_options, callbackCookie, callbackListening) {
+         _options.proxyLogLevel === 'debug' && _options.logger && _options.logger('Alexa-Cookie: Proxy-Response Outgoing: ' + customStringify(proxyRes.socket.parser.outgoing, null, 2));
+         //_options.logger && _options.logger('Proxy-Response RES!!: ' + customStringify(res, null, 2));
+ 
++        // Amazon's sign-in pages send "Content-Security-Policy: upgrade-insecure-requests".
++        // Passed through this plain-HTTP proxy, it makes the browser rewrite same-origin
++        // navigations (e.g. the /ax/claim form post) to https://<proxy>:<port>/..., which
++        // this server cannot answer ("secure connection could not be established").
++        if (proxyRes && proxyRes.headers) {
++            delete proxyRes.headers['content-security-policy'];
++            delete proxyRes.headers['content-security-policy-report-only'];
++            delete proxyRes.headers['strict-transport-security'];
++        }
++
+         if (proxyRes && proxyRes.headers && proxyRes.headers['set-cookie']) {
+             // make sure cookies are also sent to http by remove secure flags
+             for (let i = 0; i < proxyRes.headers['set-cookie'].length; i++) {
+@@ -338,6 +348,8 @@ function initAmazonProxy(_options, callbackCookie, callbackListening) {
+             if (body) {
+                 const bodyOrig = body;
+                 body = replaceHosts(body);
++                // Same CSP directive can also arrive as a <meta http-equiv> tag in the page.
++                body = body.replace(/upgrade-insecure-requests;?/gi, '');
+                 if (body !== bodyOrig) {
+                     _options.logger && _options.logger('Alexa-Cookie: MODIFIED Response Body to rewrite URLs');
+                     _options.logger && _options.logger('');
+@@ -352,6 +364,14 @@ function initAmazonProxy(_options, callbackCookie, callbackListening) {
+     // create the proxy (without context)
+     const myProxy = proxy(optionsAlexa);
+     if (_options.expressInstance !== undefined) {
++        // Amazon's newer sign-in flow submits to root-relative paths such as /ax/claim and /ap/...,
++        // which escape the /proxy/www.<domain> prefix. Send them back through the proxy.
++        // 307 keeps the method and body, so the sign-in POST survives the redirect.
++        _options.expressInstance.use(['/ax', '/ap'], (req, res) => {
++            const target = `${_options.proxyRootPath}/www.${_options.baseAmazonPage}${req.originalUrl}`;
++            _options.logger && _options.logger('Alexa-Cookie: Re-routing escaped Amazon path ' + req.originalUrl + ' -> ' + target);
++            res.redirect(307, target);
++        });
+         _options.expressInstance.use(`${_options.proxyRootPath}`, myProxy);
+         callbackListening(_options.expressInstance);
+     } else {
