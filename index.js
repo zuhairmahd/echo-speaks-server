@@ -639,37 +639,59 @@ function getRemoteCookie(alexaOptions) {
     });
 }
 
+// Hides the hub access token when logging callback URLs.
+const redactUrl = (u) => String(u || "").replace(/(access_token=)[^&]+/i, "$1***");
+
 function sendCookiesToEndpoint(url, cookieData) {
     return new Promise((resolve) => {
-        if (url && cookieData && Object.keys(cookieData).length >= 2) {
-            let options = {
-                method: "POST",
-                uri: url,
-                body: {
-                    cookieData: cookieData,
-                    version: appVer,
-                    onHeroku: configData.settings.useHeroku === true,
-                    isLocal: configData.settings.useHeroku !== true,
-                    serverUrl: configData.settings.useHeroku === true ? null : `http://${getLocalHost()}`,
-                },
-                json: true,
-            };
-            // console.log("sendCookiesToEndpoint: ", options);
-            reqPromise(options)
-                .then((resp) => {
-                    // console.log('resp:', resp);
-                    if (resp) {
-                        logger.info(`** Alexa Cookie Data sent to ${configData.settings.hubPlatform} Cloud Endpoint Successfully! **`);
-                        resolve(true);
-                    } else {
-                        resolve(false);
-                    }
-                })
-                .catch((err) => {
-                    logger.error(`ERROR: Unable to send Alexa Cookie Data to ${configData.settings.hubPlatform}: ` + err.message);
-                    resolve(false);
-                });
+        const hub = configData.settings.hubPlatform;
+        if (!url) {
+            // Previously this returned silently and the promise never settled.
+            logger.warn(`Cookie hand-off skipped: no ${hub} callback URL (appCallbackUrl) is configured.`);
+            return resolve(false);
         }
+        if (!cookieData || Object.keys(cookieData).length < 2) {
+            logger.warn(`Cookie hand-off skipped: cookie data is empty or incomplete (${cookieData ? Object.keys(cookieData).join(", ") : "none"}).`);
+            return resolve(false);
+        }
+        const body = {
+            cookieData: cookieData,
+            version: appVer,
+            onHeroku: configData.settings.useHeroku === true,
+            isLocal: configData.settings.useHeroku !== true,
+            serverUrl: configData.settings.useHeroku === true ? null : `http://${getLocalHost()}`,
+        };
+        const started = Date.now();
+        logger.info(
+            `Cookie hand-off: POST ${redactUrl(url)} | keys: ${Object.keys(cookieData).join(", ")} | ` +
+                `localCookie: ${cookieData.localCookie ? "yes" : "NO"} | csrf: ${cookieData.csrf ? "yes" : "NO"} | ` +
+                `refreshToken: ${cookieData.refreshToken ? "yes" : "NO"} | payload: ${Buffer.byteLength(JSON.stringify(body))} bytes`,
+        );
+        reqPromise({
+            method: "POST",
+            uri: url,
+            body: body,
+            json: true,
+            resolveWithFullResponse: true,
+            timeout: 30000,
+        })
+            .then((resp) => {
+                const respBody = resp && resp.body !== undefined ? JSON.stringify(resp.body) : "";
+                logger.info(`Cookie hand-off: ${hub} answered HTTP ${resp && resp.statusCode} in ${Date.now() - started}ms | body: ${respBody.slice(0, 300)}`);
+                if (resp && resp.statusCode >= 200 && resp.statusCode < 300) {
+                    logger.info(`** Alexa Cookie Data sent to ${hub} Endpoint Successfully! **`);
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            })
+            .catch((err) => {
+                const status = err && err.statusCode ? `HTTP ${err.statusCode}` : "no HTTP response";
+                const detail = err && err.error !== undefined ? (typeof err.error === "string" ? err.error : JSON.stringify(err.error)) : "";
+                logger.error(`ERROR: Unable to send Alexa Cookie Data to ${hub} (${status}) after ${Date.now() - started}ms: ${err.message}`);
+                if (detail) logger.error(`Cookie hand-off response body: ${detail.slice(0, 500)}`);
+                resolve(false);
+            });
     });
 }
 
